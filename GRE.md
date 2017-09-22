@@ -50,7 +50,7 @@ GRE over IPSec thường sử dụng chế độ transport, nếu những điể
 **Mô Hình lab**
 
 
-![Caption for the picture.](https://i.imgur.com/U5UoZfF.png)
+![Caption for the picture.](https://i.imgur.com/3PTq3XW.png)
 
 Trước tiên để cấu hình GRE Tunnel cần kiểm tra xem IP_GRE trên các host
 ```sh
