@@ -74,13 +74,13 @@ Kiểm tra cấu hình
     inet6 fe80::5efe:a00:212/64 scope link 
        valid_lft forever preferred_lft forever
 ```
-**Cấu hình trên host B**
+**Cấu hình trên Note2**
 ```sh
 ip tunnel add tun8 mode gre remote 10.0.2.18 local 10.0.2.17 ttl 255
 ip link set tun8 up
 ip addr add 20.0.0.1 dev tun8
 ```
-Kiểm tra kết nối
+Kiểm tra cau hinh
 
 ```sh
 # ip a
@@ -93,8 +93,9 @@ Kiểm tra kết nối
 
 ```
 
-**Cấu hình định tuyến trên Node1**
+**Cấu hình định tuyến trên Node2**
 
+Từ Node2 ta cần định tuyến cho dải LAN1:192.168.56.0/24 có được Route với ip tunel 20.0.0.1
 ```sh
 root@node2:~# ip r
 default via 10.0.2.2 dev enp0s3 onlink 
@@ -103,6 +104,73 @@ default via 10.0.2.2 dev enp0s3 onlink
 192.168.56.0/24 via 20.0.0.1 dev tun8 
 192.168.57.0/24 dev enp0s8  proto kernel  scope link  src 192.168.57.5 
 ```
+Từ Node1 ta cần định tuyến cho dải LAN2:192.167.57.0/24 Route với ip tunel 20.0.0.2
+```sh
+root@node1:~# ip r
+default via 10.0.2.2 dev enp0s3 onlink 
+10.0.2.0/24 dev enp0s3  proto kernel  scope link  src 10.0.2.18 
+20.0.0.0/24 dev tun8  proto kernel  scope link  src 20.0.0.2 
+192.168.56.0/24 dev enp0s8  proto kernel  scope link  src 192.168.56.2 
+192.168.57.0/24 via 20.0.0.2 dev tun8
+```
+**Kiểm tra kết nối sử dụng Ping + SSH**
 
+**Từ Com1 ping và ssh tới Com2**
+```sh
+root@com1:~# ping 192.168.57.4
+PING 192.168.57.4 (192.168.57.4) 56(84) bytes of data.
+64 bytes from 192.168.57.4: icmp_seq=1 ttl=62 time=0.786 ms
+64 bytes from 192.168.57.4: icmp_seq=2 ttl=62 time=0.599 ms
+64 bytes from 192.168.57.4: icmp_seq=3 ttl=62 time=0.675 ms
+64 bytes from 192.168.57.4: icmp_seq=4 ttl=62 time=0.599 ms
+64 bytes from 192.168.57.4: icmp_seq=5 ttl=62 time=0.666 ms
+64 bytes from 192.168.57.4: icmp_seq=6 ttl=62 time=0.604 ms
+64 bytes from 192.168.57.4: icmp_seq=7 ttl=62 time=0.637 ms
+64 bytes from 192.168.57.4: icmp_seq=8 ttl=62 time=0.581 ms
+64 bytes from 192.168.57.4: icmp_seq=9 ttl=62 time=0.635 ms
+64 bytes from 192.168.57.4: icmp_seq=10 ttl=62 time=0.579 ms
+```
 
+**Từ com1 ssh tới com 2 thành công và TCPDUMP trên tun8 thu được kết quả**
+```sh
+11:15:58.495634 IP 192.168.57.4.ssh > 192.168.56.4.48998: Flags [P.], seq 1:37, ack 36, win 582, options [nop,nop,TS val 1773076 ecr 1773688], length 36
+11:15:58.495808 IP 192.168.56.4.48998 > 192.168.57.4.ssh: Flags [.], ack 37, win 668, options [nop,nop,TS val 1773688 ecr 1773076], length 0
+11:15:58.718034 IP 192.168.56.4.48998 > 192.168.57.4.ssh: Flags [P.], seq 36:72, ack 37, win 668, options [nop,nop,TS val 1773744 ecr 1773076], length 36
+11:15:58.718749 IP 192.168.57.4.ssh > 192.168.56.4.48998: Flags [P.], seq 37:73, ack 72, win 582, options [nop,nop,TS val 1773132 ecr 1773744], length 36
+11:15:58.718905 IP 192.168.56.4.48998 > 192.168.57.4.ssh: Flags [.], ack 73, win 668, options [nop,nop,TS val 1773744 ecr 1773132], length 0
+11:15:58.814205 IP 192.168.56.4.48998 > 192.168.57.4.ssh: Flags [P.], seq 72:108, ack 73, win 668, options [nop,nop,TS val 1773768 ecr 1773132], length 36
+11:15:58.815088 IP 192.168.57.4.ssh > 192.168.56.4.48998: Flags [P.], seq 73:109, ack 108, win 582, options [nop,nop,TS val 1773156 ecr 1773768], length 36
+11:15:58.815246 IP 192.168.56.4.48998 > 192.168.57.4.ssh: Flags [.], ack 109, win 668, options [nop,nop,TS val 1773768 ecr 1773156], length 0
+11:15:58.998075 IP 192.168.56.4.48998 > 192.168.57.4.ssh: Flags [P.], seq 108:144, ack 109, win 668, options [nop,nop,TS val 1773814 ecr 1773156], length 36
+11:15:58.998848 IP 192.168.57.4.ssh > 192.168.56.4.48998: Flags [P.], seq 109:145, ack 144, win 582, options [nop,nop,TS val 1773202 ecr 1773814], length 36
+```
+**Từ Com2 ping và ssh tới Com1**
 
+```sh
+root@Com2:~# ping 192.168.56.4
+PING 192.168.56.4 (192.168.56.4) 56(84) bytes of data.
+64 bytes from 192.168.56.4: icmp_seq=1 ttl=62 time=1.11 ms
+64 bytes from 192.168.56.4: icmp_seq=2 ttl=62 time=0.589 ms
+64 bytes from 192.168.56.4: icmp_seq=3 ttl=62 time=1.44 ms
+64 bytes from 192.168.56.4: icmp_seq=4 ttl=62 time=0.570 ms
+^C
+--- 192.168.56.4 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3001ms
+rtt min/avg/max/mdev = 0.570/0.929/1.442/0.368 ms
+```
+**SSH**
+```sh
+root@Com2:~# ssh hannv@192.168.56.4
+hannv@192.168.56.4's password: 
+Welcome to Ubuntu 16.04.3 LTS (GNU/Linux 4.4.0-87-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/advantage
+
+57 packages can be updated.
+37 updates are security updates.
+
+Last login: Fri Sep 22 11:12:51 2017 from 192.168.56.1
+hannv@com1:~$
+```
