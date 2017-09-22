@@ -57,7 +57,7 @@ Trước tiên để cấu hình GRE Tunnel cần kiểm tra xem IP_GRE trên c�
 modprobe ip_gre
 lsmod | grep gre
 ```
-**Cấu hình Note1**
+**Cấu hình Node1**
 
 ```sh
 ip tunnel add tun8 mode gre remote 10.0.2.17 local 10.0.2.18 ttl 255
@@ -74,7 +74,7 @@ Kiểm tra cấu hình
     inet6 fe80::5efe:a00:212/64 scope link 
        valid_lft forever preferred_lft forever
 ```
-**Cấu hình trên Note2**
+**Cấu hình trên Node2**
 ```sh
 ip tunnel add tun8 mode gre remote 10.0.2.18 local 10.0.2.17 ttl 255
 ip link set tun8 up
