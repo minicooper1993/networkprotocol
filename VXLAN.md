@@ -47,68 +47,135 @@ VXLAN thêm 50 bytes. Để tránh phân mảnh và tái lắp ráp, tất cả 
 
 **Mô hình Lab**
 
-![Caption for the picture.](https://i.imgur.com/gtakrU6.png)
+![Caption for the picture.](https://i.imgur.com/asFzNEg.png)
 
-
-Trước tiên cần cài openvswitch lên các host
-```sh
-apt-get install openvswitch-switch
-```
-**Cấu hình trên Host1**
+**Cấu hình trên Node1**
 
 ```sh
-ovs-vsctl add-br br1
-ovs-vsctl add-port br1 enp0s3
-ip link set enp0s3 up
-ip link set br1 up
+ip link add vxlan10 type vxlan id 80 remote 10.0.2.17 local 10.0.2.18 dev enp0s3  dstport 4789
+ip link set vxlan10 up
+ip addr add 20.0.0.2/24 dev vxlan10
 ```
-Tạo tun9 với type=vxlan và VNI= 123
+Kiểm tra thông tin vxlan10 vừa tạo
+```sh
+root@node1:~# ip -d link show vxlan10
+4: vxlan10: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1450 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/ether ea:b6:30:51:c9:a5 brd ff:ff:ff:ff:ff:ff promiscuity 0 
+    vxlan id 80 remote 10.0.2.17 local 10.0.2.18 dev enp0s3 srcport 0 0 dstport 4789 ageing 300 addrgenmode eui64
+```
+**Cấu hình trên Node2**
 
 ```sh
-ovs-vsctl add-port br1 tun9 -- set interface tun9 type=vxlan options:remote_ip=192.168.58.3 options:key=123
+ip link add vxlan10 type vxlan id 80 remote 10.0.2.18 local 10.0.2.17 dev enp0s3  dstport 4789
+ip link set vxlan10 up
+ip addr add 20.0.0.1/24 dev vxlan10
 ```
+Kiểm tra thông tin vxlan10 vừa tạo
+```sh
+root@node2:~# ip -d link show vxlan10
+4: vxlan10: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1450 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/ether 5a:4d:e5:58:b7:29 brd ff:ff:ff:ff:ff:ff promiscuity 0 
+    vxlan id 80 remote 10.0.2.18 local 10.0.2.17 dev enp0s3 srcport 0 0 dstport 4789 ageing 300 addrgenmode eui64
+```
+**Thêm đường route cần thiết trên Node1**
 
-Kiểm tra cấu hình
-
-
-**Cấu hình trên Host2**
+Route dải Lan2: 192.168.57.0/24 via 20.0.0.1
 
 ```sh
-ovs-vsctl add-br br2
-ovs-vsctl add-port br1 enp0s3
-ip link set enp0s3 up
-ip link set br2 up
+root@node1:~# ip r
+default via 10.0.2.2 dev enp0s3 onlink 
+10.0.2.0/24 dev enp0s3  proto kernel  scope link  src 10.0.2.18 
+20.0.0.0/24 dev vxlan10  proto kernel  scope link  src 20.0.0.2 
+192.168.56.0/24 dev enp0s8  proto kernel  scope link  src 192.168.56.2 
+192.168.57.0/24 via 20.0.0.1 dev vxlan10 
 ```
-Tạo tun9 với type-vxlan và VNI=123 trên Host2
+**Thêm đường route cần thiết trên Node2**
+
+Route dải Lan1: 192.168.56.0/24 via 20.0.0.2
 ```sh
-ovs-vsctl add-port br2 tun9 -- set interface tun9 type=vxlan options:remote_ip=192.168.58.3 options:key=123
+root@node2:~# ip r
+default via 10.0.2.2 dev enp0s3 onlink 
+10.0.2.0/24 dev enp0s3  proto kernel  scope link  src 10.0.2.17 
+20.0.0.0/24 dev vxlan10  proto kernel  scope link  src 20.0.0.1 
+192.168.56.0/24 via 20.0.0.2 dev vxlan10 
+192.168.57.0/24 dev enp0s8  proto kernel  scope link  src 192.168.57.5 
 ```
-Kiểm tra kết nối
+**Kiểm tra kết nối từ COM1 đến COM2 bằng ICMP + SSH và ngược lại**
 
-**Chú ý** 
-Để kiểm tra một cách chính xác xem vxlan đã hoạt động ra sao, đóng gói như thế nào ta cần sử dụng Wireshark để chặn bắt gói tin và phân tích.
+Ping từ com1 --> com2
+```sh
+root@com1:~# ping 192.168.57.4
+PING 192.168.57.4 (192.168.57.4) 56(84) bytes of data.
+64 bytes from 192.168.57.4: icmp_seq=1 ttl=62 time=0.656 ms
+64 bytes from 192.168.57.4: icmp_seq=2 ttl=62 time=4.45 ms
+64 bytes from 192.168.57.4: icmp_seq=3 ttl=62 time=0.869 ms
+64 bytes from 192.168.57.4: icmp_seq=4 ttl=62 time=0.614 ms
+64 bytes from 192.168.57.4: icmp_seq=5 ttl=62 time=1.43 ms
+```
 
-Ping từ Host1 tới Host2
+SSH từ com1 ---> com2
 
 ```sh
-root@ubuntu:~# ping 10.0.2.16
-PING 10.0.2.16 (10.0.2.16) 56(84) bytes of data.
-64 bytes from 10.0.2.16: icmp_seq=1 ttl=64 time=0.469 ms
-64 bytes from 10.0.2.16: icmp_seq=2 ttl=64 time=1.18 ms
-64 bytes from 10.0.2.16: icmp_seq=3 ttl=64 time=0.892 ms
-64 bytes from 10.0.2.16: icmp_seq=4 ttl=64 time=1.25 ms
-64 bytes from 10.0.2.16: icmp_seq=5 ttl=64 time=1.21 ms
+root@com1:~# ssh hannv@192.168.57.4
+hannv@192.168.57.4's password: 
+Welcome to Ubuntu 16.04.3 LTS (GNU/Linux 4.4.0-87-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/advantage
+
+57 packages can be updated.
+37 updates are security updates.
+
+
+Last login: Fri Sep 22 14:35:15 2017 from 192.168.56.4
+hannv@Com2:~$ ifconfig 
+enp0s3    Link encap:Ethernet  HWaddr 08:00:27:e9:e4:d4  
+          inet addr:192.168.57.4  Bcast:192.168.57.255  Mask:255.255.255.0
+          inet6 addr: fe80::a00:27ff:fee9:e4d4/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:2700 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:6520 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:243676 (243.6 KB)  TX bytes:1149999 (1.1 MB)
 ```
 
+Ping từ com2 --> com1
+```sh
+root@Com2:~# ping 192.168.56.4
+PING 192.168.56.4 (192.168.56.4) 56(84) bytes of data.
+64 bytes from 192.168.56.4: icmp_seq=1 ttl=62 time=0.663 ms
+64 bytes from 192.168.56.4: icmp_seq=2 ttl=62 time=0.628 ms
+64 bytes from 192.168.56.4: icmp_seq=3 ttl=62 time=0.699 ms
+64 bytes from 192.168.56.4: icmp_seq=4 ttl=62 time=0.708 ms
+64 bytes from 192.168.56.4: icmp_seq=5 ttl=62 time=0.754 ms
+```
+
+SSH từ com2 ---> com1
+```sh
+root@Com2:~# ssh hannv@192.168.56.4
+hannv@192.168.56.4's password: 
+Welcome to Ubuntu 16.04.3 LTS (GNU/Linux 4.4.0-87-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/advantage
+
+57 packages can be updated.
+37 updates are security updates.
 
 
-
-
-
-
-
-
-
+Last login: Fri Sep 22 14:34:47 2017 from 192.168.57.4
+hannv@com1:~$ ifconfig 
+enp0s3    Link encap:Ethernet  HWaddr 08:00:27:e7:de:03  
+          inet addr:192.168.56.4  Bcast:192.168.56.255  Mask:255.255.255.0
+          inet6 addr: fe80::a00:27ff:fee7:de03/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:4403 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:8420 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:365927 (365.9 KB)  TX bytes:2120725 (2.1 MB)
+```
 
 
 
