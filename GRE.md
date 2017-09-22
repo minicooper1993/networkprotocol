@@ -50,71 +50,59 @@ GRE over IPSec thường sử dụng chế độ transport, nếu những điể
 **Mô Hình lab**
 
 
-![Caption for the picture.](https://i.imgur.com/3PTq3XW.png)
+![Caption for the picture.](https://i.imgur.com/8VctlkN.png)
 
 Trước tiên để cấu hình GRE Tunnel cần kiểm tra xem IP_GRE trên các host
 ```sh
 modprobe ip_gre
 lsmod | grep gre
 ```
-**Cấu hình trên host A**
+**Cấu hình Note1**
 
 ```sh
-ip tunnel add tun9 mode gre remote 192.168.56.2 local 192.168.58.2 ttl 255
-ip link set tun9 up
-ip addr add 10.0.2.21 dev tun9
+ip tunnel add tun8 mode gre remote 10.0.2.17 local 10.0.2.18 ttl 255
+ip link set tun8 up
+ip addr add 20.0.0.2 dev tun8
 ```
 Kiểm tra cấu hình 
 ```sh
 # ip a
-9: tun9@NONE: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1476 qdisc noqueue state UNKNOWN group default qlen 1
-    link/gre 192.168.58.2 peer 192.168.56.2
-    inet 10.0.2.21/32 scope global tun9
+6: tun8@NONE: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1476 qdisc noqueue state UNKNOWN group default qlen 1
+    link/gre 10.0.2.18 peer 10.0.2.17
+    inet 20.0.0.2/24 scope global tun8
        valid_lft forever preferred_lft forever
-    inet6 fe80::5efe:c0a8:3a02/64 scope link 
+    inet6 fe80::5efe:a00:212/64 scope link 
        valid_lft forever preferred_lft forever
 ```
 **Cấu hình trên host B**
 ```sh
-ip tunnel add tun9 mode gre remote 192.168.58.2 local 192.168.56.2 ttl 255
-ip link set tun9 up
-ip addr add 10.0.2.22 dev tun9
+ip tunnel add tun8 mode gre remote 10.0.2.18 local 10.0.2.17 ttl 255
+ip link set tun8 up
+ip addr add 20.0.0.1 dev tun8
 ```
 Kiểm tra kết nối
 
 ```sh
 # ip a
-8: tun9@NONE: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1476 qdisc noqueue state UNKNOWN group default qlen 1
-    link/gre 192.168.56.2 peer 192.168.58.2
-    inet 10.0.2.22/32 scope global tun9
+6: tun8@NONE: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1476 qdisc noqueue state UNKNOWN group default qlen 1
+    link/gre 10.0.2.17 peer 10.0.2.18
+    inet 20.0.0.1/24 scope global tun8
        valid_lft forever preferred_lft forever
-    inet6 fe80::5efe:c0a8:3802/64 scope link 
+    inet6 fe80::5efe:a00:211/64 scope link 
        valid_lft forever preferred_lft forever
 
 ```
 
-**Kết quả**
-
-Tại host B địa chỉ  ping đến dải tun9 của host A
+**Cấu hình định tuyến trên Node1**
 
 ```sh
-root@ubuntu:~# ping 10.0.2.21
-PING 10.0.2.21 (10.0.2.21) 56(84) bytes of data.
-64 bytes from 10.0.2.21: icmp_seq=1 ttl=64 time=0.734 ms
-64 bytes from 10.0.2.21: icmp_seq=2 ttl=64 time=0.377 ms
-64 bytes from 10.0.2.21: icmp_seq=3 ttl=64 time=0.828 ms
-64 bytes from 10.0.2.21: icmp_seq=4 ttl=64 time=0.858 ms
-64 bytes from 10.0.2.21: icmp_seq=5 ttl=64 time=0.387 ms
+root@node2:~# ip r
+default via 10.0.2.2 dev enp0s3 onlink 
+10.0.2.0/24 dev enp0s3  proto kernel  scope link  src 10.0.2.17 
+20.0.0.0/24 dev tun8  proto kernel  scope link  src 20.0.0.1 
+192.168.56.0/24 via 20.0.0.1 dev tun8 
+192.168.57.0/24 dev enp0s8  proto kernel  scope link  src 192.168.57.5 
 ```
 
-Tại host A ping đến dải tun9 ở Host B
 
-```sh
-root@ubuntu:~# ping 10.0.2.22
-PING 10.0.2.22 (10.0.2.22) 56(84) bytes of data.
-64 bytes from 10.0.2.22: icmp_seq=1 ttl=64 time=0.334 ms
-64 bytes from 10.0.2.22: icmp_seq=2 ttl=64 time=0.567 ms
-64 bytes from 10.0.2.22: icmp_seq=3 ttl=64 time=0.392 ms
-64 bytes from 10.0.2.22: icmp_seq=4 ttl=64 time=0.390 ms
 
-```
